@@ -176,4 +176,4 @@ jobs:
             go-api-mock-server-linux-arm64
             source-code.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.ACTION_TOKEN }} 

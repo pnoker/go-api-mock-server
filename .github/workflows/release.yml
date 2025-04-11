@@ -1,0 +1,179 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build Windows
+        run: |
+          GOOS=windows GOARCH=amd64 go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }}" -o go-api-mock-server-windows-amd64.exe
+
+      - name: Build macOS (Intel/AMD)
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }}" -o go-api-mock-server-darwin-amd64
+
+      - name: Build macOS (Apple Silicon)
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }}" -o go-api-mock-server-darwin-arm64
+
+      - name: Build Linux (Intel/AMD)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }}" -o go-api-mock-server-linux-amd64
+
+      - name: Build Linux (ARM64)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }}" -o go-api-mock-server-linux-arm64
+
+      - name: Create source code archive
+        run: |
+          git archive --format=zip --output=source-code.zip HEAD
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            # Go API Mock Server ${{ steps.get_version.outputs.VERSION }}
+            
+            A simple yet powerful Go API Mock server that automatically reads `.api` files from the `mock` directory and creates HTTP API endpoints.
+            
+            ## Features
+            
+            - Automatically loads API definitions from the `mock` directory
+            - Supports multiple response formats (single quotes, double quotes, backticks)
+            - Automatically fixes JSON format (e.g., unquoted `ok` values)
+            - Supports custom port and mock directory location
+            - Auto-detects mock directory location
+            - Detailed logging output
+            - Supports Windows, macOS and Linux platforms
+            
+            ## Installation
+            
+            Download the appropriate executable for your platform from the assets below.
+            
+            ## Usage
+            
+            ### 1. Create API Definition Files
+            
+            Create `.api` files in the `mock` directory with the following format:
+            
+            ```
+            METHOD PATH 'RESPONSE'
+            ```
+            
+            Three quote formats are supported:
+            ```
+            GET api/v3/device/list '{"code":"ok","message":"xxx"}'
+            POST api/v3/user/login "{"code":"ok","message":"xxx"}"
+            POST api/v3/user/logout `{"code":ok,"message":"xxx"}`
+            ```
+            
+            ### 2. Run the Server
+            
+            #### Basic Usage
+            
+            ```bash
+            # Auto-detect mock directory
+            ./go-api-mock-server
+            
+            # Specify mock directory
+            ./go-api-mock-server -mock="../mock"
+            
+            # Specify port
+            ./go-api-mock-server -port=9090
+            
+            # Specify both directory and port
+            ./go-api-mock-server -mock="../mock" -port=9090
+            ```
+            
+            #### Command Line Arguments
+            
+            - `-mock`: Directory containing mock API definitions (default: auto-detect)
+            - `-port`: Port to listen on (default: 8080)
+            
+            ### 3. Access APIs
+            
+            Once the server is running, you can access the configured API endpoints via HTTP requests:
+            
+            ```bash
+            # Example request
+            curl http://localhost:8080/api/v3/device/list
+            ```
+            
+            Response example:
+            ```json
+            {"code":"ok","message":"xxx"}
+            ```
+            
+            ## Auto-detection of Mock Directory
+            
+            If you don't specify the `-mock` parameter, the server will automatically try the following locations (in order):
+            1. `./mock` (current directory)
+            2. `../mock` (parent directory)
+            
+            This eliminates the need to specify the mock directory location every time.
+            
+            ## Important Notes
+            
+            - Responses must be valid JSON format
+            - If the response contains unquoted `ok` values, the server will automatically add quotes
+            - The server logs all API access
+            - Comments are supported: lines starting with `#` or `//` are ignored
+            
+            ## Examples
+            
+            ### API Definition File (mock/example.api)
+            
+            ```
+            # This is a comment
+            GET api/v3/device/list `{"code":ok,"message":"Device List"}`
+            
+            # This is another comment
+            POST api/v3/user/login "{"code":"ok","message":"Login successful","data":{"token":"abc123"}}"
+            ```
+            
+            ### Accessing APIs
+            
+            ```bash
+            # Get device list
+            curl http://localhost:8080/api/v3/device/list
+            
+            # User login
+            curl -X POST http://localhost:8080/api/v3/user/login
+            ```
+            
+            ## Troubleshooting
+            
+            If you encounter issues, check the following:
+            
+            1. Does the mock directory exist and contain `.api` files?
+            2. Is the `.api` file format correct?
+            3. Is the JSON response format valid?
+            4. Is the port already in use by another application?
+          files: |
+            go-api-mock-server-windows-amd64.exe
+            go-api-mock-server-darwin-amd64
+            go-api-mock-server-darwin-arm64
+            go-api-mock-server-linux-amd64
+            go-api-mock-server-linux-arm64
+            source-code.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
